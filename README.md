@@ -1,8 +1,12 @@
 # Zig + FreeRTOS + ESP-IDF Starter Template (`zig-esp-idf`)
 
+[![Discord - Zig LLM Group](https://img.shields.io/badge/Discord-Zig%20LLM%20Group-5865F2?logo=discord&logoColor=white)](https://discord.gg/qs5gbtg28H)
+
 A clean, standalone, and production-ready project template pairing **Zig 0.17.0** with **ESP-IDF v5.x** and **FreeRTOS**.
 
 The build lifecycle is managed **100% natively via `zig build`**—no auxiliary shell scripts required.
+
+> **Community**: Join the [**Zig LLM Group** Discord server](https://discord.gg/qs5gbtg28H) to discuss Zig on microcontrollers, ESP-IDF integration, and AI agent workflows.
 
 ---
 
