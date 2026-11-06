@@ -2,7 +2,7 @@
 
 A clean, standalone, and production-ready project template pairing **Zig 0.17.0** with **ESP-IDF v5.x** and **FreeRTOS**.
 
-This repository contains the pure FreeRTOS abstractions and ESP32 silicon HAL extracted and decoupled from application-specific logic, ready to serve as the foundation for any new embedded Zig project on Espressif microcontrollers.
+The build lifecycle is managed **100% natively via `zig build`**—no auxiliary shell scripts required.
 
 ---
 
@@ -12,11 +12,11 @@ This repository contains the pure FreeRTOS abstractions and ESP32 silicon HAL ex
 zig-esp-idf/
 ├── CMakeLists.txt              # Top-level ESP-IDF CMake project definition
 ├── sdkconfig.defaults          # Default ESP-IDF configuration (ESP32-C6 / generic)
-├── build.zig                   # Multi-target Zig 0.17 build script
+├── build.zig                   # Native Zig 0.17 build & toolchain orchestration
 ├── build.zig.zon               # Zig package manifest
 ├── main/
-│   ├── CMakeLists.txt          # ESP-IDF component CMake invoking 'zig build'
-│   └── app_entry.c             # Minimal C anchor for component registration
+│   ├── CMakeLists.txt          # ESP-IDF component linking zig-out/lib/zig_esp_idf.o
+│   └── app_entry.c             # Minimal C anchor satisfying component registration
 ├── src/
 │   ├── main.zig                # Clean app_main() entry point demonstrating tasks & queues
 │   ├── rtos/                   # Zero-overhead FreeRTOS abstractions & bindings
@@ -32,9 +32,25 @@ zig-esp-idf/
 │       ├── gpio.zig            # OutputPin, InputPin, MMIO fast paths & mock pins
 │       ├── delay.zig           # Microsecond busy-wait delays (esp_rom_delay_us)
 │       └── system.zig          # Heap statistics, uptime counters, chip restart
-└── scripts/
-    └── build.sh                # Helper script for building, testing, flashing, and monitoring
+└── README.md                   # Project documentation
 ```
+
+---
+
+## Native `zig build` Workflow
+
+Every task—from compiling the core object and running host unit tests to invoking the ESP-IDF toolchain, flashing, and monitoring serial output—is exposed directly via standard Zig build steps and options:
+
+| Command | Action |
+| :--- | :--- |
+| `zig build` | Compiles the Zig object and builds the complete ESP-IDF binary (`build/zig_esp_idf.bin`) |
+| `zig build test --summary all` | Runs all host unit tests natively (sub-second, 0 hardware required) |
+| `zig build flash` | Flashes firmware to the board (auto-detects USB port) |
+| `zig build flash -Dport=/dev/cu.usbmodem11301` | Flashes to a specific serial port |
+| `zig build monitor` | Opens the interactive serial console monitor |
+| `zig build flash monitor` | Flashes and immediately connects to the serial console |
+| `zig build app-core` | Builds only the Zig freestanding relocatable object (`zig-out/lib/zig_esp_idf.o`) |
+| `zig build clean` | Cleans all build artifacts and caches |
 
 ---
 
@@ -42,7 +58,7 @@ zig-esp-idf/
 
 1. **Pure Zig Application Logic (`src/main.zig`)**:
    - The entire firmware entry point (`app_main`), background tasks, and event loops are written in pure Zig.
-   - Minimal C glue: `main/app_entry.c` is only a trivial 10-line anchor satisfying ESP-IDF's component build phase.
+   - Minimal C glue: `main/app_entry.c` is only a trivial anchor satisfying ESP-IDF's component build phase.
 
 2. **Zero-Cost FreeRTOS Bindings (`src/rtos/`)**:
    - **`Task.spawn`**: Type-safe task spawning handling C trampolines automatically.
@@ -60,30 +76,6 @@ zig-esp-idf/
 4. **Remote Bootloader Recovery**:
    - `hal.uart.ConsoleUart.rebootToBootloader()` triggers the ROM serial download bootloader via `LP_AON_SYS_CFG_REG`.
    - Incoming UART characters `'b'`, `'B'`, `'u'`, `'U'` trigger software download mode, allowing repeated flashing without physical button presses.
-
----
-
-## Quick Start
-
-### Prerequisites
-- **Zig 0.17.0**: Installed and available in your `PATH`.
-- **ESP-IDF v5.x**: Standard installation (e.g. at `~/esp/esp-idf`).
-
-### Essential Commands
-
-```bash
-# 1. Run Host Unit Tests (Instant feedback, no hardware needed)
-./scripts/build.sh test
-
-# 2. Build the Complete ESP-IDF Firmware Binary
-./scripts/build.sh build
-
-# 3. Flash to Connected ESP32 Board over USB
-./scripts/build.sh flash
-
-# 4. Open Serial Monitor (115200 baud)
-./scripts/build.sh monitor
-```
 
 ---
 
@@ -188,7 +180,7 @@ To switch to a different target (e.g. `esp32c3`, `esp32s3`, `esp32`):
 2. In `build.zig`: Adjust the `arch_os_abi` and `cpu_features` in `esp32_target` (for Xtensa chips like ESP32/ESP32-S3, specify `xtensa-freestanding-none`).
 3. Clean and reconfigure:
    ```bash
-   ./scripts/build.sh clean
+   zig build clean
    idf.py set-target <target>
-   ./scripts/build.sh build
+   zig build
    ```
