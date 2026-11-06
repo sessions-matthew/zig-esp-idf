@@ -1,0 +1,17 @@
+.{
+    .name = .zig_esp_idf,
+    .fingerprint = 0x323ee05171befba9,
+    .version = "0.1.0",
+    .minimum_zig_version = "0.17.0",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "main",
+        "CMakeLists.txt",
+        "sdkconfig.defaults",
+        "scripts",
+        "README.md",
+    },
+}

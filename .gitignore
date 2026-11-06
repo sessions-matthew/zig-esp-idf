@@ -1,0 +1,11 @@
+# Build outputs
+build/
+zig-out/
+.zig-cache/
+
+# ESP-IDF generated files
+sdkconfig
+sdkconfig.old
+
+# OS files
+.DS_Store
