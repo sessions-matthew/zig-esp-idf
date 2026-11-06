@@ -198,3 +198,9 @@ To switch to a different target (e.g. `esp32c3`, `esp32s3`, `esp32`):
    idf.py set-target <target>
    zig build
    ```
+
+---
+
+## Acknowledgments
+
+Built with **Gemini** in **Google Antigravity**.
