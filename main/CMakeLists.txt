@@ -14,15 +14,22 @@ if(NOT ZIG_EXECUTABLE)
     message(FATAL_ERROR "Zig 0.17+ executable not found in PATH")
 endif()
 
+# Determine architecture flag for Zig based on ESP-IDF target
+if(IDF_TARGET STREQUAL "esp32" OR IDF_TARGET STREQUAL "esp32s2" OR IDF_TARGET STREQUAL "esp32s3")
+    set(ZIG_ARCH_FLAG "-Darch=xtensa")
+else()
+    set(ZIG_ARCH_FLAG "-Darch=riscv32")
+endif()
+
 # Build the Zig object artifact during CMake generation/build
-message(STATUS "Compiling Zig ESP-IDF core object...")
+message(STATUS "Compiling Zig ESP-IDF core object (${IDF_TARGET} -> ${ZIG_ARCH_FLAG})...")
 execute_process(
-    COMMAND ${ZIG_EXECUTABLE} build app-core --release=small
+    COMMAND ${ZIG_EXECUTABLE} build app-core --release=small ${ZIG_ARCH_FLAG}
     WORKING_DIRECTORY "${ZIG_PROJECT_DIR}"
     RESULT_VARIABLE zig_res
 )
 if(NOT zig_res EQUAL 0)
-    message(FATAL_ERROR "Failed to build Zig core object via 'zig build app-core'")
+    message(FATAL_ERROR "Failed to build Zig core object via 'zig build app-core ${ZIG_ARCH_FLAG}'")
 endif()
 
 if(EXISTS "${ZIG_OBJ}")

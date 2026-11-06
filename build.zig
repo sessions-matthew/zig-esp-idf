@@ -1,5 +1,10 @@
 const std = @import("std");
 
+pub const TargetArch = enum {
+    riscv32,
+    xtensa,
+};
+
 fn makeIdfCommand(b: *std.Build, subcmd: []const u8, port: ?[]const u8) *std.Build.Step.Run {
     var cmd_buf: std.ArrayList(u8) = .empty;
     defer cmd_buf.deinit(b.allocator);
@@ -49,16 +54,29 @@ pub fn build(b: *std.Build) void {
     });
 
     const port = b.option([]const u8, "port", "Serial port for flashing and monitoring (e.g. -Dport=/dev/cu.usbmodem11301)");
+    const arch_opt = b.option(TargetArch, "arch", "Target architecture: riscv32 (default: native LLVM) or xtensa (Zig C backend + GCC)");
+    const force_c_backend = b.option(bool, "c-backend", "Force using the Zig C backend + ESP-IDF GCC toolchain") orelse false;
+
+    const is_xtensa = (arch_opt == .xtensa);
+    const use_c_backend = is_xtensa or force_c_backend;
 
     // ------------------------------------------------------------------------
-    // Target 1: ESP32 (RISC-V 32-bit RV32IMAC for ESP32-C6 / ESP32-C3)
+    // Target 1: ESP32 Silicon Target (RISC-V 32 or Xtensa)
     // ------------------------------------------------------------------------
-    const esp32_target = b.resolveTargetQuery(
-        std.Target.Query.parse(.{
-            .arch_os_abi = "riscv32-freestanding-none",
-            .cpu_features = "generic_rv32+m+a+c+zicsr+zifencei+relax",
-        }) catch unreachable,
-    );
+    const esp32_target = if (is_xtensa)
+        b.resolveTargetQuery(.{
+            .cpu_arch = .xtensa,
+            .cpu_model = .{ .explicit = &std.Target.xtensa.cpu.esp32 },
+            .os_tag = .freestanding,
+            .ofmt = if (use_c_backend) .c else null,
+        })
+    else
+        b.resolveTargetQuery(
+            std.Target.Query.parse(.{
+                .arch_os_abi = "riscv32-freestanding-none",
+                .cpu_features = "generic_rv32+m+a+c+zicsr+zifencei+relax",
+            }) catch unreachable,
+        );
 
     const hal_mod = b.createModule(.{
         .root_source_file = b.path("src/hal/root.zig"),
@@ -88,11 +106,37 @@ pub fn build(b: *std.Build) void {
         .root_module = app_core_mod,
     });
 
-    const install_app_obj = b.addInstallFile(app_obj.getEmittedBin(), "lib/zig_esp_idf.o");
-
-    // Step for compiling just the Zig object (called by main/CMakeLists.txt)
+    // Step for compiling the Zig core object
     const app_core_step = b.step("app-core", "Build ESP32 Zig core object only (zig-out/lib/zig_esp_idf.o)");
-    app_core_step.dependOn(&install_app_obj.step);
+
+    // Dependency step for IDF build
+    var obj_ready_step: *std.Build.Step = undefined;
+
+    if (use_c_backend) {
+        // Model A: Zig emits C code, then ESP-IDF GCC compiles it into an ELF object
+        const install_c_source = b.addInstallFile(app_obj.getEmittedBin(), "src/zig_esp_idf.c");
+
+        const gcc_tool = if (is_xtensa) "xtensa-esp-elf-gcc" else "riscv32-esp-elf-gcc";
+        const compile_script = b.fmt(
+            \\if ! command -v {s} >/dev/null 2>&1; then source ${{HOME}}/esp/esp-idf/export.sh >/dev/null 2>&1; fi
+            \\ZIG_LIB_DIR="$(zig env | grep lib_dir | awk '{{print $3}}' | tr -d '",')"
+            \\mkdir -p zig-out/lib
+            \\{s} -c zig-out/src/zig_esp_idf.c -I"${{ZIG_LIB_DIR}}" "-D_Static_assert(x,y)=" -O2 -ffunction-sections -fdata-sections -mlongcalls -o zig-out/lib/zig_esp_idf.o
+        , .{ gcc_tool, gcc_tool });
+
+        const gcc_compile_cmd = b.addSystemCommand(&.{ "bash", "-c", compile_script });
+        gcc_compile_cmd.step.dependOn(&install_c_source.step);
+        gcc_compile_cmd.stdio = .inherit;
+        gcc_compile_cmd.has_side_effects = true;
+
+        app_core_step.dependOn(&gcc_compile_cmd.step);
+        obj_ready_step = &gcc_compile_cmd.step;
+    } else {
+        // Model B: Native Zig LLVM code generation (RISC-V 32)
+        const install_app_obj = b.addInstallFile(app_obj.getEmittedBin(), "lib/zig_esp_idf.o");
+        app_core_step.dependOn(&install_app_obj.step);
+        obj_ready_step = &install_app_obj.step;
+    }
 
     // ------------------------------------------------------------------------
     // Target 2: Host Unit Testing (`zig build test --summary all`)
@@ -146,7 +190,7 @@ pub fn build(b: *std.Build) void {
     // Target 3: ESP-IDF Toolchain Steps (`zig build`, `zig build flash`, etc.)
     // ------------------------------------------------------------------------
     const idf_build_cmd = makeIdfCommand(b, "build", null);
-    idf_build_cmd.step.dependOn(&install_app_obj.step);
+    idf_build_cmd.step.dependOn(obj_ready_step);
 
     const idf_step = b.step("idf", "Build complete ESP-IDF firmware binary (build/zig_esp_idf.bin)");
     idf_step.dependOn(&idf_build_cmd.step);

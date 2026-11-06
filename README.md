@@ -49,8 +49,22 @@ Every task—from compiling the core object and running host unit tests to invok
 | `zig build flash -Dport=/dev/cu.usbmodem11301` | Flashes to a specific serial port |
 | `zig build monitor` | Opens the interactive serial console monitor |
 | `zig build flash monitor` | Flashes and immediately connects to the serial console |
-| `zig build app-core` | Builds only the Zig freestanding relocatable object (`zig-out/lib/zig_esp_idf.o`) |
+| `zig build app-core` | Compiles only the freestanding Zig object (RISC-V 32 via native LLVM) |
+| `zig build app-core -Darch=xtensa` | Compiles for Xtensa (ESP32/ESP32-S3) via Zig C backend + ESP-IDF GCC |
 | `zig build clean` | Cleans all build artifacts and caches |
+
+---
+
+## Dual Compilation Pipeline (RISC-V & Xtensa)
+
+`build.zig` dynamically adapts to the target architecture:
+
+1. **RISC-V Targets (ESP32-C3, ESP32-C6, ESP32-H2)**:
+   - Compiles directly to ELF relocatable objects (`zig-out/lib/zig_esp_idf.o`) using Zig's built-in LLVM backend.
+2. **Xtensa Targets (ESP32 classic, ESP32-S2, ESP32-S3)**:
+   - Uses Zig's C backend (`-ofmt=c`) to translate Zig into standard C (`zig-out/src/zig_esp_idf.c`).
+   - Automatically invokes ESP-IDF's bundled `xtensa-esp-elf-gcc` to produce the final `zig-out/lib/zig_esp_idf.o`.
+   - ESP-IDF CMake automatically passes `-Darch=xtensa` when `IDF_TARGET` is set to an Xtensa chip.
 
 ---
 
