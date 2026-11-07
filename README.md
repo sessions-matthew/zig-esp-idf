@@ -1,6 +1,7 @@
 # Zig + FreeRTOS + ESP-IDF Starter Template (`zig-esp-idf`)
 
 [![Discord - Zig LLM Group](https://img.shields.io/badge/Discord-Zig%20LLM%20Group-5865F2?logo=discord&logoColor=white)](https://discord.gg/qs5gbtg28H)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A clean, standalone project template pairing **Zig 0.17.0** with **ESP-IDF v5.x** and **FreeRTOS**.
 
@@ -198,6 +199,12 @@ To switch to a different target (e.g. `esp32c3`, `esp32s3`, `esp32`):
    idf.py set-target <target>
    zig build
    ```
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
